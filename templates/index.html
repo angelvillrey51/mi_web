@@ -9,7 +9,9 @@
 <div id="pantalla">
     <button id="btn">Presióname</button>
     <h1 id="texto" style="display:none;">Ashanty consigue trabajo</h1>
+
     <canvas id="confetti"></canvas>
+
     <h1>Datos en tiempo real</h1>
     <h2 id="temp">Temperatura: -- °C</h2>
     <h2 id="hum">Humedad: -- %</h2>
@@ -17,9 +19,12 @@
 
 <audio id="musica" src="{{ url_for('static', filename='audio/cutbangarang.mp3') }}"></audio>
 
+<!-- Tu script principal -->
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 
-<script src="{{ url_for('static', filename='script.js') }}">
-    setInterval(() => {
+<!-- Script tiempo real -->
+<script>
+setInterval(() => {
   fetch("/ver")
     .then(r => r.json())
     .then(d => {
@@ -30,5 +35,6 @@
     });
 }, 2000);
 </script>
+
 </body>
 </html>
