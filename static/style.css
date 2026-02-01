@@ -1,16 +1,27 @@
 body {
-    background: #111;
-    color: white;
-    font-family: Arial;
-    text-align: center;
-    padding-top: 50px;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: black;
+    transition: 1s;
+    font-family: Arial, sans-serif;
 }
 
-button {
-    background: #ff0055;
+#btn {
+    padding: 20px 40px;
+    font-size: 24px;
     border: none;
-    padding: 15px 25px;
+    border-radius: 12px;
+    background: #ff0055;
     color: white;
-    font-size: 18px;
-    border-radius: 10px;
+    cursor: pointer;
+}
+
+#texto {
+    color: white;
+    font-size: 50px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
 }

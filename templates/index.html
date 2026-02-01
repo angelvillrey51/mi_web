@@ -1,15 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mi primera web</title>
+    <title>Mi web</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
-<h1>Bienvenido a mi página 😎</h1>
-<p>Esta es mi primera web con diseño.</p>
+<div id="pantalla">
+    <button id="btn">Presióname</button>
+    <h1 id="texto" style="display:none;">Ashanty consigue trabajo</h1>
+</div>
 
-<button>Contáctame</button>
-
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
