@@ -15,47 +15,49 @@ hands.setOptions({
   minTrackingConfidence: 0.7
 });
 
-// Variables para detección
-let lastPositions = [];
-const maxHistory = 5;
-const filterThreshold = 3;
+// Variables
 let gestureCounter = 0;
+const filterThreshold = 3;  // frames consecutivos necesarios
 let activeTimer = null;
 
-// Contar dedos
+// Función para contar dedos levantados (true = levantado)
 function contarDedos(landmarks) {
   const tipIds = [4, 8, 12, 16, 20];
   let dedos = [false, false, false, false, false];
-  dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x;
+  dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x; // pulgar
   for (let i = 1; i < tipIds.length; i++) {
     dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y;
   }
   return dedos;
 }
 
-// Detectar agitar mano
-function detectarAgitar(positions) {
-  if (positions.length < maxHistory) return false;
-
-  // Calcular desplazamiento promedio de los 4 dedos largos
-  let sumDiff = 0;
-  for (let i = 0; i < 4; i++) {
-    let dy = positions[positions.length - 1][i].y - positions[0][i].y;
-    let dx = positions[positions.length - 1][i].x - positions[0][i].x;
-    sumDiff += Math.sqrt(dx*dx + dy*dy);
-  }
-
-  // Umbral ajustable
-  return sumDiff > 0.12;
+// Función para detectar gesto OK 👌
+function detectarOK(landmarks) {
+  const tipIds = [4,8,12,16,20];
+  const pulgar = landmarks[tipIds[0]];
+  const indice = landmarks[tipIds[1]];
+  
+  // Distancia entre pulgar e índice < umbral para formar círculo
+  const dist = Math.hypot(pulgar.x - indice.x, pulgar.y - indice.y);
+  
+  // Los otros 3 dedos levantados
+  const medio = landmarks[tipIds[2]];
+  const anular = landmarks[tipIds[3]];
+  const meñique = landmarks[tipIds[4]];
+  const otrosLevantados = (medio.y < landmarks[tipIds[2]-2].y) &&
+                           (anular.y < landmarks[tipIds[3]-2].y) &&
+                           (meñique.y < landmarks[tipIds[4]-2].y);
+  
+  return dist < 0.05 && otrosLevantados;
 }
 
-// Activar acción por 3 segundos
+// Activar acción 5 segundos
 function activarAccion(texto) {
   accion.innerText = `Acción: ${texto}`;
   if (activeTimer) clearTimeout(activeTimer);
   activeTimer = setTimeout(() => {
     accion.innerText = "Acción: Ninguna";
-  }, 3000);
+  }, 5000);
 }
 
 // Procesar resultados de MediaPipe
@@ -77,7 +79,7 @@ hands.onResults(results => {
 
     const dedos = contarDedos(landmarks);
 
-    // --- Gest V ---
+    // --- Gesto V ---
     if (dedos[0] && dedos[1] && !dedos[2] && !dedos[3] && !dedos[4]) {
       gestureCounter++;
       if (gestureCounter >= filterThreshold) {
@@ -86,21 +88,12 @@ hands.onResults(results => {
       }
     }
 
-    // --- Gest agitar ---
-    let pos = [];
-    const tipIds = [8, 12, 16, 20]; // 4 dedos largos
-    for (let i = 0; i < tipIds.length; i++) {
-      pos.push({x: landmarks[tipIds[i]].x, y: landmarks[tipIds[i]].y});
-    }
-    lastPositions.push(pos);
-    if (lastPositions.length > maxHistory) lastPositions.shift();
-
-    if (!detected && detectarAgitar(lastPositions)) {
+    // --- Gesto OK 👌 ---
+    if (!detected && detectarOK(landmarks)) {
       gestureCounter++;
       if (gestureCounter >= filterThreshold) {
-        activarAccion("Abrir puerta (Agitar mano)");
+        activarAccion("Abrir puerta (OK 👌)");
         detected = true;
-        lastPositions = [];
       }
     }
 
@@ -110,16 +103,16 @@ hands.onResults(results => {
   canvasCtx.restore();
 });
 
-// Iniciar cámara al presionar botón
+// Iniciar cámara
 startButton.addEventListener('click', async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     videoElement.srcObject = stream;
     videoElement.play();
-    videoElement.style.display = 'none'; // Ocultar video original
+    videoElement.style.display = 'none'; // ocultar video original
 
     const processFrame = async () => {
-      if (videoElement.readyState === 4) { // esperar a que el video esté listo
+      if (videoElement.readyState === 4) {
         await hands.send({image: videoElement});
       }
       requestAnimationFrame(processFrame);
