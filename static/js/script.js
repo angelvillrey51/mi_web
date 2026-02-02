@@ -1,5 +1,6 @@
 // Elementos del DOM
 const videoElement = document.getElementById('video');
+const startButton = document.getElementById('startCam');
 const canvasElement = document.getElementById('canvas');
 const canvasCtx = canvasElement.getContext('2d');
 const contador = document.getElementById('contador');
@@ -15,10 +16,10 @@ hands.setOptions({
 
 // Función para contar dedos levantados
 function contarDedos(landmarks) {
-  const tipIds = [4, 8, 12, 16, 20];
+  const tipIds = [4, 8, 12, 16, 20]; // pulgar, índice, medio, anular, meñique
   let dedos = 0;
 
-  // Pulgar
+  // Pulgar (mano derecha simple)
   if (landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x) dedos++;
 
   // Otros 4 dedos
@@ -52,12 +53,15 @@ hands.onResults(results => {
   canvasCtx.restore();
 });
 
-// Acceso a la cámara
+// Inicializamos la cámara (sin arrancar)
 const camera = new Camera(videoElement, {
-  onFrame: async () => {
-    await hands.send({image: videoElement});
-  },
+  onFrame: async () => { await hands.send({image: videoElement}); },
   width: 640,
   height: 480
 });
-camera.start();
+
+// Solo arrancamos la cámara cuando el usuario presione el botón
+startButton.addEventListener('click', () => {
+  camera.start();
+  startButton.style.display = 'none'; // ocultamos el botón después de activar la cámara
+});
