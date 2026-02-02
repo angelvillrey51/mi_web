@@ -15,40 +15,75 @@ hands.setOptions({
   minTrackingConfidence: 0.7
 });
 
-// Variables para detectar movimiento
-let lastPositions = []; // historial de posiciones para detectar “agitar”
-const maxHistory = 5; // cuántos frames guardar
+// Variables para detección de movimiento
+let lastPositions = [];
+const maxHistory = 5;       // historial de frames
+const filterThreshold = 3;  // cantidad de frames consecutivos para validar gesto
+let gestureCounter = 0;     // contador de frames para gesto
+let activeTimer = null;     // timer para mantener acción activa
 
+// Función para contar dedos levantados
+function contarDedos(landmarks) {
+  const tipIds = [4, 8, 12, 16, 20];
+  let dedos = [false, false, false, false, false];
+  // Pulgar
+  dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x;
+  // Otros 4 dedos
+  for (let i = 1; i < tipIds.length; i++) {
+    dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y;
+  }
+  return dedos;
+}
+
+// Función para detectar gesto "agitar mano"
+function detectarAgitar(lastPositions) {
+  if (lastPositions.length < maxHistory) return false;
+
+  let totalDiff = 0;
+  for (let i = 0; i < 4; i++) {
+    let diffY = lastPositions[maxHistory-1][i].y - lastPositions[0][i].y;
+    let diffX = lastPositions[maxHistory-1][i].x - lastPositions[0][i].x;
+    totalDiff += Math.abs(diffY) + Math.abs(diffX);
+  }
+
+  return totalDiff > 0.15; // umbral para movimiento
+}
+
+// Función para activar acción 3 segundos
+function activarAccion(texto) {
+  accion.innerText = `Acción: ${texto}`;
+  if (activeTimer) clearTimeout(activeTimer);
+  activeTimer = setTimeout(() => {
+    accion.innerText = "Acción: Ninguna";
+  }, 3000);
+}
+
+// MediaPipe onResults
 hands.onResults(results => {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
   canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-  let accionActual = "Ninguna";
-
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
     const landmarks = results.multiHandLandmarks[0];
-
-    // Dibujar la mano
     drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FFCC', lineWidth: 5});
     drawLandmarks(canvasCtx, landmarks, {color: '#FF0066', lineWidth: 2});
 
-    // Contar dedos levantados
-    const tipIds = [4, 8, 12, 16, 20];
-    let dedos = [false, false, false, false, false]; // pulgar a meñique
-    // Pulgar
-    dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x;
-    for (let i = 1; i < tipIds.length; i++) {
-      dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y;
-    }
+    // Contar dedos
+    const dedos = contarDedos(landmarks);
 
-    // --- Detectar gesto V: pulgar + índice levantado ---
+    // --- Detectar gesto V ---
+    let gestureDetected = false;
     if (dedos[0] && dedos[1] && !dedos[2] && !dedos[3] && !dedos[4]) {
-      accionActual = "Abrir puerta (V)";
+      gestureCounter++;
+      if (gestureCounter >= filterThreshold) {
+        activarAccion("Abrir puerta (V)");
+        gestureDetected = true;
+      }
     }
 
-    // --- Detectar gesto “agitar mano” ---
-    // Guardamos posición media de los 4 dedos (índice, medio, anular, meñique)
+    // --- Detectar gesto agitar ---
+    // Guardamos posición media de 4 dedos
     let pos = [];
     for (let i = 1; i <= 4; i++) {
       pos.push({x: landmarks[tipIds[i]].x, y: landmarks[tipIds[i]].y});
@@ -56,21 +91,19 @@ hands.onResults(results => {
     lastPositions.push(pos);
     if (lastPositions.length > maxHistory) lastPositions.shift();
 
-    // Revisamos si la mano se movió hacia adelante
-    if (lastPositions.length === maxHistory) {
-      let moved = 0;
-      for (let i = 0; i < 4; i++) {
-        let diff = lastPositions[maxHistory-1][i].y - lastPositions[0][i].y;
-        if (diff > 0.05) moved++;
-      }
-      if (moved >= 3) {
-        accionActual = "Abrir puerta (agitar mano)";
-        lastPositions = []; // reiniciar historial para no repetir
+    if (!gestureDetected && detectarAgitar(lastPositions)) {
+      gestureCounter++;
+      if (gestureCounter >= filterThreshold) {
+        activarAccion("Abrir puerta (agitar mano)");
+        gestureDetected = true;
       }
     }
+
+    // Si no detectamos gesto en este frame, resetear contador
+    if (!gestureDetected) gestureCounter = 0;
+
   }
 
-  accion.innerText = "Acción: " + accionActual;
   canvasCtx.restore();
 });
 
