@@ -4,6 +4,9 @@ const canvasElement = document.getElementById('canvas');
 const canvasCtx = canvasElement.getContext('2d');
 const accion = document.getElementById('accion');
 
+// IP o URL de tu ESP32
+const ESP32_URL = "http://192.168.1.50/abrir"; // cambia a tu IP
+
 // MediaPipe Hands
 const hands = new Hands({
   locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -18,17 +21,15 @@ hands.setOptions({
 let vCounter = 0;          // cuántas veces se hizo la V
 const vRepetitions = 2;    // V requiere 2 repeticiones
 let activeTimer = null;
-
-// Estado para V
 let manoCerrada = false;
 
 // Contar dedos levantados
 function contarDedos(landmarks) {
-  const tipIds = [4, 8, 12, 16, 20]; // pulgar, índice, medio, anular, meñique
+  const tipIds = [4, 8, 12, 16, 20];
   let dedos = [false, false, false, false, false];
-  dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x; // pulgar
+  dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x;
   for (let i = 1; i < tipIds.length; i++) {
-    dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y; // levantado
+    dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y;
   }
   return dedos;
 }
@@ -38,22 +39,31 @@ function detectarOK(landmarks) {
   const tipIds = [4,8,12,16,20];
   const pulgar = landmarks[tipIds[0]];
   const indice = landmarks[tipIds[1]];
-
   const dist = Math.hypot(pulgar.x - indice.x, pulgar.y - indice.y);
-
   const medio = landmarks[tipIds[2]];
   const anular = landmarks[tipIds[3]];
   const meñique = landmarks[tipIds[4]];
   const otrosLevantados = (medio.y < landmarks[tipIds[2]-2].y) &&
                            (anular.y < landmarks[tipIds[3]-2].y) &&
                            (meñique.y < landmarks[tipIds[4]-2].y);
-
   return dist < 0.05 && otrosLevantados;
 }
 
-// Activar acción 5 segundos
+// Función para mandar POST al ESP32
+function enviarSenalESP32() {
+  fetch(ESP32_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accion: "abrir" })
+  })
+  .then(res => console.log("Señal enviada al ESP32"))
+  .catch(err => console.error("Error enviando señal:", err));
+}
+
+// Activar acción y mandar señal
 function activarAccion(texto) {
   accion.innerText = `Acción: ${texto}`;
+  enviarSenalESP32(); // mandar señal al ESP32
   if (activeTimer) clearTimeout(activeTimer);
   activeTimer = setTimeout(() => {
     accion.innerText = "Acción: Ninguna";
@@ -64,10 +74,7 @@ function activarAccion(texto) {
 hands.onResults(results => {
   canvasCtx.save();
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-  if (results.image) {
-    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-  }
+  if (results.image) canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
   if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
     const landmarks = results.multiHandLandmarks[0];
@@ -76,31 +83,28 @@ hands.onResults(results => {
 
     const dedos = contarDedos(landmarks);
 
-    // --- Estado de V ---
+    // --- V con estado de cierre y apertura ---
     const tresMediosCerrados = !dedos[2] && !dedos[3] && !dedos[4];
     const pulgarIndiceV = dedos[0] && dedos[1];
 
-    // Detectar cuando la mano está cerrada (3 dedos medios abajo)
     if (tresMediosCerrados && !pulgarIndiceV) {
-      manoCerrada = true; // mano lista para contar V
+      manoCerrada = true;
     }
 
-    // Detectar V solo después de cerrar la mano
     if (manoCerrada && pulgarIndiceV && tresMediosCerrados) {
       vCounter++;
-      manoCerrada = false; // resetear hasta que cierre y abra otra vez
+      manoCerrada = false;
       if (vCounter >= vRepetitions) {
         activarAccion("Abrir puerta (V)");
         vCounter = 0;
       }
     }
 
-    // --- Gesto OK 👌 ---
+    // --- OK 👌 ---
     if (detectarOK(landmarks)) {
       activarAccion("Abrir puerta (OK 👌)");
     }
   }
-
   canvasCtx.restore();
 });
 
@@ -110,12 +114,10 @@ startButton.addEventListener('click', async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     videoElement.srcObject = stream;
     videoElement.play();
-    videoElement.style.display = 'none'; // ocultar video
+    videoElement.style.display = 'none';
 
     const processFrame = async () => {
-      if (videoElement.readyState === 4) {
-        await hands.send({image: videoElement});
-      }
+      if (videoElement.readyState === 4) await hands.send({image: videoElement});
       requestAnimationFrame(processFrame);
     };
     processFrame();
