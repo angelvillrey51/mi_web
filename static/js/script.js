@@ -15,15 +15,17 @@ hands.setOptions({
   minTrackingConfidence: 0.7
 });
 
+let vCounter = 0;          // cuántas veces se hizo la V
+const vRepetitions = 2;    // V requiere 2 repeticiones
 let activeTimer = null;
 
 // Contar dedos levantados
 function contarDedos(landmarks) {
-  const tipIds = [4, 8, 12, 16, 20];
+  const tipIds = [4, 8, 12, 16, 20]; // pulgar, índice, medio, anular, meñique
   let dedos = [false, false, false, false, false];
   dedos[0] = landmarks[tipIds[0]].x > landmarks[tipIds[0]-1].x; // pulgar
   for (let i = 1; i < tipIds.length; i++) {
-    dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y;
+    dedos[i] = landmarks[tipIds[i]].y < landmarks[tipIds[i]-2].y; // levantado
   }
   return dedos;
 }
@@ -74,11 +76,21 @@ hands.onResults(results => {
     const dedos = contarDedos(landmarks);
 
     // --- Gesto V ---
+    // Solo detecta si pulgar+índice levantados y los demás completamente abajo
     if (dedos[0] && dedos[1] && !dedos[2] && !dedos[3] && !dedos[4]) {
-      activarAccion("Abrir puerta (V)");
+      vCounter++;
+      if (vCounter >= vRepetitions) {
+        activarAccion("Abrir puerta (V)");
+        vCounter = 0; // reiniciar repeticiones
+      }
+    } else {
+      // reset si la mano no cumple la forma exacta
+      // esto evita que al abrir la mano con 5 dedos siga contando
+      vCounter = 0;
     }
+
     // --- Gesto OK 👌 ---
-    else if (detectarOK(landmarks)) {
+    if (detectarOK(landmarks)) {
       activarAccion("Abrir puerta (OK 👌)");
     }
   }
